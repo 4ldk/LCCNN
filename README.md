@@ -1,6 +1,6 @@
 # LCCNN
 
-CNN models for [MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/ ) and [Open-Source-Event-Driven-ECG-Dataset](https://github.com/jedaiproject/Open-Source-Event-Driven-ECG-Dataset).
+CNN models for [MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/ ) and [Open-Source-Event-Driven-ECG-Dataset](https://github.com/jedaiproject/Open-Source-Event-Driven-ECG-Dataset) by PyTorch.
 
 
 ## How to train
