@@ -466,7 +466,7 @@ def resnet34(num_classes=1):
 
 if __name__ == "__main__":
 
-    m = CNN(1792)
+    m = LCCNN(832)
 
     input_shape = (2, 120)
     t = flops_counter.get_model_complexity_info(m, input_shape, as_strings=False)

@@ -9,8 +9,7 @@ from torch.utils.data import DataLoader
 
 import models
 import setting_path as PATH
-from datamodules import ECGDataset
-from lightning_net import Net
+from datamodules import ECGDataset, Net
 
 
 def main():
@@ -23,7 +22,7 @@ def main():
     batch_size = 512
     dropout = 0.6
     dence_input = 2752  # if window_size = 360→2752 120→192 252→1856 models.pyで調査
-    model = models.resnet34(4)
+    model = models.LCCNNLight(dropout=dropout)
 
     X_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "X.npy"))
     y_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "y.npy"))
