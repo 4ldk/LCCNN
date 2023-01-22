@@ -23,10 +23,11 @@ class ECGDataset(Dataset):
 
 
 class Net(pl.LightningModule):
-    def __init__(self, model, lr):
+    def __init__(self, input_layer, model, lr):
         super().__init__()
 
         print("Making Model...")
+        self.input = input_layer
         self.model = model
         self.criterion = nn.CrossEntropyLoss()
 
@@ -39,7 +40,8 @@ class Net(pl.LightningModule):
         self.cm = np.zeros([4, 4])
 
     def forward(self, input):
-        output = self.model(input)
+        x = self.input(input)
+        output = self.model(x)
         return output
 
     def loss_fn(self, pred, label):

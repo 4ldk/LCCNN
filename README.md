@@ -13,25 +13,26 @@ CNN models for [MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb
 
 
 ## Models
-- LSTM
-  - Simple LSTM model for MIT-BIH Arrhythmia Database.
-  - This is not reccomended.
 - CNN
   - Simple CNN model for MIT-BIH Arrhythmia Database designed in [4].
 - LCCNN
   - Simple CNN model for Open-Source-Event-Driven-ECG-Dataset designed in [4].
-- TimeEmbeddingCNN
-  - CNN model for Open-Source-Event-Driven-ECG-Dataset, but 1st layer is linear layer + full-learnable positional encoding layer.
-- TimeSinCNN
-  - CNN model for Open-Source-Event-Driven-ECG-Dataset, but 1st layer is linear layer + sinusoidal positional encoding layer.
 - LCCNNLight
-  - CNN model for Open-Source-Event-Driven-ECG-Dataset lighter than LCCNN by using big maxpooling.
-- LCCNNLight2
   - CNN model for Open-Source-Event-Driven-ECG-Dataset lighter than LCCNN by using additional CNN layer.
 - Resnet34
   - 1d-ResNet34 for MIT-BITH Arrhythmia Database
   - You can use this for Open-Source-Event-Driven-ECG-Dataset by small change.
   
+## Input Layers
+- NormalCNN
+  - Simple 2ch-CNN layer for Open-Source-Event-Driven-ECG-Dataset designed in [4].
+- TimeEmbedding
+  - Input layer for Open-Source-Event-Driven-ECG-Dataset that is 1ch-CNN layer + full-learnable positional encoding layer.
+- TimeSin
+  - Input layer for Open-Source-Event-Driven-ECG-Dataset that is 1ch-CNN layer + sinusoidal positional encoding layer.
+- NonTimed
+  - 1ch-CNN layer for Open-Source-Event-Driven-ECG-Dataset.
+
 ## References
 
 [1] https://physionet.org/content/mitdb/1.0.0/  

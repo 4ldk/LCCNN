@@ -15,28 +15,35 @@ from datamodules import ECGDataset, Net
 def main():
 
     warnings.simplefilter("ignore")
-    load_dir = "lc_preprocessed"  # preprocessed or lc_preprocessed
+    load_dir = "without_time"  # preprocessed or lc_preprocessed or without_time
     epochs = 1000
     num_gpu = 1
     lr = 1e-3
     batch_size = 512
     dropout = 0.6
-    dence_input = 2752  # if window_size = 360→2752 120→192 252→1856 models.pyで調査
-    model = models.LCCNNLight(dropout=dropout)
+    dence_input = 832  # if window_size = 360→2752 120→832 80→512 models.pyで調査
+    # !!!!!!!       If you train  Only CNN model, CHAGE loading data from c to t       !!!!!!!!!
+    # !!!!! If you train TimeEmbedding or TimeSin model, CHAGE loading data from t to c  !!!!!!!
+
+    input_layer = models.NonTimed()  # If you train LCANN model, Set in_channnels = 1
+    model = models.LCCNN(dence_input=dence_input, dropout=dropout)
+    # If you train LCCNN or CNN model, set dence_input = dence_input.
+    # If you train LCCNNLight2 with dataset with lengths other than 120, change last_kernel
 
     X_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "X.npy"))
     y_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "y.npy"))
     X_valid = np.load(os.path.join(PATH.ecg_path, load_dir, "valid", "X.npy"))
     y_valid = np.load(os.path.join(PATH.ecg_path, load_dir, "valid", "y.npy"))
+    # If you train without_time data, change pathes.
 
     sm = SMOTE()
 
-    if load_dir == "lc_preprocessed":
+    if load_dir != "preprocessed":
 
         t_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "t.npy"))
         t_valid = np.load(os.path.join(PATH.ecg_path, load_dir, "valid", "t.npy"))
-        # c_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "t.npy")) - 1
-        # c_valid = np.load(os.path.join(PATH.ecg_path, load_dir, "valid", "t.npy")) - 1
+        # c_train = np.load(os.path.join(PATH.ecg_path, load_dir, "train", "c.npy")) - 1
+        # c_valid = np.load(os.path.join(PATH.ecg_path, load_dir, "valid", "c.npy")) - 1
 
         X_train = np.stack([X_train, t_train]).transpose(1, 0, 2).reshape(-1, 240)  # c_train or t_train
         X_train, y_train = sm.fit_resample(X_train, y_train)
@@ -81,7 +88,7 @@ def main():
         print(x.shape, y.shape)
         break
 
-    net = Net(model, lr)
+    net = Net(input_layer, model, lr)
 
     callbacks = []
     checkpoint = ModelCheckpoint(
@@ -113,11 +120,13 @@ def main():
         )
     )
     trainer = pl.Trainer(max_epochs=epochs, gpus=num_gpu, accelerator="gpu", check_val_every_n_epoch=10)
+    # if you use EarlyStopping, set callbacks=callbacks
+
     trainer.fit(net, train_loader, valid_loader)
     trainer.test(dataloaders=valid_loader, ckpt_path="best")
 
 
 if __name__ == "__main__":
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     main()

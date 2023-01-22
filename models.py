@@ -10,34 +10,8 @@ warnings.simplefilter("ignore")
 from mmcv.cnn.utils import flops_counter
 
 
-class LSTM(nn.Module):
-    def __init__(self, batch_size, dim, hidden_dim, pred_num, num_lstm, device="cuda") -> None:
-        super().__init__()
-
-        self.dim = dim
-        self.hidden_dim = hidden_dim
-        self.num_layer = num_lstm
-        self.batch_size = batch_size
-        self.linear1 = nn.Linear(1, self.dim)
-        # self.lstm = nn.LSTM(self.dim, self.hidden_dim, num_layers=self.num_layer, batch_first=True, dropout=0.3, bidirectional=True)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=dim, nhead=4, dim_feedforward=4 * dim, batch_first=True)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=self.num_layer)
-        self.linear2 = nn.Linear(self.dim * 720, pred_num)
-
-        self.h_0 = Variable(torch.zeros(self.num_layer * 2, self.batch_size, self.hidden_dim).to(device))
-        self.c_0 = Variable(torch.zeros(self.num_layer * 2, self.batch_size, self.hidden_dim).to(device))
-
-        pos = torch.arange(720).to(dtype=torch.long, device=device)
-        self.positions = pos.unsqueeze(0)
-        self.position_embeddings = nn.Embedding(720, dim)
-
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
-
 class CNN(nn.Module):
-    def __init__(self, dense_input, dropout=0.5) -> None:
+    def __init__(self, dence_input, dropout=0.5) -> None:
         super().__init__()
         self.in_channels = 64
         self.conv1 = nn.Conv1d(1, self.in_channels, kernel_size=3, bias=False)
@@ -50,7 +24,7 @@ class CNN(nn.Module):
 
         self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
 
-        self.dence = nn.Linear(dense_input, 128)
+        self.dence = nn.Linear(dence_input, 128)
         self.out = nn.Linear(128, 4)
 
         self.dropout = nn.Dropout(dropout)
@@ -80,29 +54,44 @@ class CNN(nn.Module):
         return x
 
 
-class LCCNN(nn.Module):
-    def __init__(self, dense_input, dropout=0.5) -> None:
+class LCANN(nn.Module):
+    def __init__(self, dropout=0.5, input_length=59) -> None:
         super().__init__()
-        self.in_channels = 64
-        self.conv1 = nn.Conv1d(2, self.in_channels, kernel_size=3, bias=False)
-        self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-        self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.bn3 = nn.BatchNorm1d(64)
-
-        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
-
-        self.dence = nn.Linear(dense_input, 128)
+        self.hidden = nn.Linear(input_length, 128)
         self.out = nn.Linear(128, 4)
 
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.maxpool(x)
+
+        x = x.reshape(x.shape[0], -1)
+
+        x = self.hidden(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.out(x)
+
+        return x
+
+
+class LCCNN(nn.Module):
+    def __init__(self, dence_input, dropout=0.5) -> None:
+        super().__init__()
+        self.in_channels = 64
+        self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
+        self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
+
+        self.bn2 = nn.BatchNorm1d(64)
+        self.bn3 = nn.BatchNorm1d(64)
+
+        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
+
+        self.dence = nn.Linear(dence_input, 128)
+        self.out = nn.Linear(128, 4)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
 
         x = self.conv2(x)
         x = self.bn2(x)
@@ -123,56 +112,13 @@ class LCCNN(nn.Module):
 
 
 class LCCNNLight(nn.Module):
-    def __init__(self, dropout=0.5) -> None:
+    def __init__(self, last_kernel=13, dropout=0.5) -> None:
         super().__init__()
         self.in_channels = 64
-        self.conv1 = nn.Conv1d(2, self.in_channels, kernel_size=3, bias=False)
         self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
         self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
+        self.conv4 = nn.Conv1d(64, self.in_channels, kernel_size=last_kernel, bias=False)
 
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.bn3 = nn.BatchNorm1d(64)
-
-        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
-        self.lastpool = nn.MaxPool1d(kernel_size=26, stride=1)
-        self.dence = nn.Linear(64, 128)
-        self.out = nn.Linear(128, 4)
-
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.maxpool(x)
-
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.maxpool(x)
-
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.lastpool(x)
-        x = x.reshape(x.shape[0], -1)
-
-        x = self.dence(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.out(x)
-
-        return x
-
-
-class LCCNNLight2(nn.Module):
-    def __init__(self, dropout=0.5) -> None:
-        super().__init__()
-        self.in_channels = 64
-        self.conv1 = nn.Conv1d(2, self.in_channels, kernel_size=3, bias=False)
-        self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-        self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-        self.conv4 = nn.Conv1d(64, self.in_channels, kernel_size=13, bias=False)
-
-        self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(64)
@@ -184,9 +130,6 @@ class LCCNNLight2(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.maxpool(x)
 
         x = self.conv2(x)
         x = self.bn2(x)
@@ -209,81 +152,61 @@ class LCCNNLight2(nn.Module):
         return x
 
 
-class TimeEmbeddingCNN(nn.Module):
-    def __init__(self, dense_input, dropout=0.5) -> None:
+class NormalCNN(nn.Module):
+    def __init__(self, in_channels=64) -> None:
         super().__init__()
-        self.in_channels = 64
-        self.time_embedding = nn.Embedding(64, 64)
-        self.linear = nn.Linear(1, 64)
-        self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-        self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.bn3 = nn.BatchNorm1d(64)
-
-        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
-
-        self.dence = nn.Linear(dense_input, 128)
-        self.out = nn.Linear(128, 4)
-
-        self.dropout = nn.Dropout(dropout)
+        self.in_channels = in_channels
+        self.conv1 = nn.Conv1d(2, self.in_channels, kernel_size=3, bias=False, padding=1)
+        self.bn1 = nn.BatchNorm1d(self.in_channels)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2)
 
     def forward(self, input):
-        c = input[:, 1].to(torch.int)
-        x = input[:, 0].unsqueeze(-1)
-        x = self.linear(x)
-        c = self.time_embedding(c)
-        x = x + c
-        x = x.transpose(2, 1)
+        x = self.conv1(input)
         x = self.bn1(x)
         x = self.maxpool(x)
-
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.maxpool(x)
-
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.maxpool(x)
-
-        x = x.reshape(x.shape[0], -1)
-
-        x = self.dence(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.out(x)
 
         return x
 
 
-class TimeSinCNN(nn.Module):
-    def __init__(self, dense_input, dropout=0.5, batch=512, length=120, dim=64) -> None:
+class TimeEmbedding(nn.Module):
+    def __init__(self, in_channels=64) -> None:
         super().__init__()
-        self.in_channels = 64
+        self.in_channels = in_channels
+        self.time_embedding = nn.Embedding(64, self.in_channels)
+        self.conv1 = nn.Conv1d(1, self.in_channels, kernel_size=3, bias=False, padding=1)
+        self.bn1 = nn.BatchNorm1d(self.in_channels)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2)
 
-        self.pe = torch.zeros(batch, length, dim)
-        pos = torch.arange(0, dim, 2)
-        self.div_term = torch.pow((1 / 10000), pos / dim)
-        self.linear = nn.Linear(1, 64)
-        self.conv2 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
-        self.conv3 = nn.Conv1d(64, self.in_channels, kernel_size=3, bias=False)
+    def forward(self, input):
+        c = input[:, 1].to(torch.int)
+        c = torch.zeros(2, 120).to(torch.int)  # For model params test(python models.py)
+        x = input[:, 0].unsqueeze(-2)
+        x = self.conv1(x)
+        c = self.time_embedding(c)
 
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.bn3 = nn.BatchNorm1d(64)
+        x = x + c.transpose(2, 1)
+        x = self.bn1(x)
+        x = self.maxpool(x)
 
-        self.maxpool = nn.MaxPool1d(kernel_size=2, stride=2)
+        return x
 
-        self.dence = nn.Linear(dense_input, 128)
-        self.out = nn.Linear(128, 4)
 
-        self.dropout = nn.Dropout(dropout)
+class TimeSin(nn.Module):
+    def __init__(self, batch=512, length=120, in_channels=64) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+
+        self.pe = torch.zeros(batch, length, self.in_channels)
+        pos = torch.arange(0, self.in_channels, 2)
+        self.div_term = torch.pow((1 / 10000), pos / self.in_channels)
+        self.conv1 = nn.Conv1d(1, self.in_channels, kernel_size=3, bias=False, padding=1)
+        self.bn1 = nn.BatchNorm1d(self.in_channels)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2)
 
     def forward(self, input):
         c = input[:, 1].to(torch.int).unsqueeze(2)
-        x = input[:, 0].unsqueeze(-1)
-        x = self.linear(x)
+        x = input[:, 0].unsqueeze(-2)
+        x = self.conv1(x)
 
         pe = self.pe.to(c.device)
         div_term = self.div_term.to(c.device)
@@ -291,25 +214,26 @@ class TimeSinCNN(nn.Module):
         pe[:, :, 1::2] = torch.cos(c * div_term)
         tim_emb = Variable(pe, requires_grad=False)
 
-        x = x + tim_emb
-        x = x.transpose(2, 1)
+        x = x + tim_emb.transpose(2, 1)
         x = self.bn1(x)
         x = self.maxpool(x)
 
-        x = self.conv2(x)
-        x = self.bn2(x)
+        return x
+
+
+class NonTimed(nn.Module):
+    def __init__(self, in_channels=64) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.conv1 = nn.Conv1d(1, self.in_channels, kernel_size=3, bias=False, padding=1)
+        self.bn1 = nn.BatchNorm1d(self.in_channels)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2)
+
+    def forward(self, input):
+        x = input[:, 0].unsqueeze(-2)
+        x = self.conv1(x)
+        x = self.bn1(x)
         x = self.maxpool(x)
-
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.maxpool(x)
-
-        x = x.reshape(x.shape[0], -1)
-
-        x = self.dence(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.out(x)
 
         return x
 
@@ -411,8 +335,6 @@ class ResNet(nn.Module):
         super().__init__()
 
         self.in_channels = 64
-        self.conv1 = nn.Conv1d(2, self.in_channels, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm1d(self.in_channels)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0], stride=1)
@@ -441,12 +363,6 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        if len(x.shape) == 2:
-            x = x.unsqueeze(-2)
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
 
         x = self.layer1(x)
         x = self.layer2(x)
@@ -466,8 +382,19 @@ def resnet34(num_classes=1):
 
 if __name__ == "__main__":
 
-    m = LCCNN(832)
+    in_channels = 64
+    m = TimeSin(in_channels=in_channels, batch=2)
+    n = LCCNN(dence_input=832)
 
-    input_shape = (2, 120)
-    t = flops_counter.get_model_complexity_info(m, input_shape, as_strings=False)
+    length = 120
+    num_channel = 2
+
+    input_shape = (num_channel, length)
+
+    t_in = flops_counter.get_model_complexity_info(m, input_shape, as_strings=False)
+    out_len = m(torch.zeros([2, num_channel, length])).shape[-1]
+    hidden_input_shape = (in_channels, out_len)
+
+    t_hi = flops_counter.get_model_complexity_info(n, hidden_input_shape, as_strings=False)
+    t = [i + h for i, h in zip(t_in, t_hi)]
     print(t)

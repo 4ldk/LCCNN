@@ -217,11 +217,26 @@ class LCADCDatasetPreprocessor(object):
 
         return signal, time, counter, ann, ann_time
 
-    def annotation_lc(self, data, window_size=120, time_size=1):
+    def annotation_lc(self, data, window_size=120, time_size=1, without_time=False):
 
         sig, time, counter, ann, ann_time = data
         X, y, t, c = [], [], [], []
         sig_len = len(sig)
+
+        if without_time:
+            dif = (np.array(sig)[1:] == np.array(sig)[:-1]).tolist()
+            pop_num = 0
+            for i in range(sig_len):
+                if i >= sig_len - pop_num:
+                    break
+                elif dif[i - pop_num]:
+                    sig.pop(i - pop_num)
+                    time.pop(i - pop_num)
+                    dif.pop(i - pop_num)
+                    ann_time = [a - 1 if a > i - pop_num else a for a in ann_time]
+                    pop_num += 1
+            print(sig_len, len(sig))
+            sig_len = len(sig)
 
         for i, a in enumerate(ann):
 
@@ -258,16 +273,18 @@ class LCADCDatasetPreprocessor(object):
         np.save(os.path.join(save_dir, "t.npy"), t)
         np.save(os.path.join(save_dir, "c.npy"), c)
 
-    def preprocess_dataset(self, save_dir="lc_preprocessed"):
+    def preprocess_dataset(self, save_dir="lc_preprocessed", without_time=False):
 
         pathes = PATH.record_list
         save_dir = os.path.join(PATH.ecg_path, save_dir)
+        if without_time:
+            save_dir = os.path.join(PATH.ecg_path, "without_time")
         train_data, valid_data = [], []
 
         for p in pathes:
 
             data = self.get_lc_signal(p)
-            data = self.annotation_lc(data)
+            data = self.annotation_lc(data, without_time=without_time)
             shuffled = list(zip(*data))
             random.shuffle(shuffled)
 
@@ -303,6 +320,18 @@ if __name__ == "__main__":
 
     X_train = np.load(os.path.join(PATH.ecg_path, save_dir, "train", "X.npy"))
     y_train = np.load(os.path.join(PATH.ecg_path, save_dir, "train", "y.npy"))
+
+    print("X_train.shape = ", X_train.shape, " \t y_train.shape = ", y_train.shape)
+
+    uniq_train, counts_train = np.unique(y_train, return_counts=True)
+    print("y_train count each labels: ", dict(zip(uniq_train, counts_train)))
+
+    # Preprocessing lc ADC w/o max time
+    save_dir = "lc_preprocessed"
+    LCADCDatasetPreprocessor().preprocess_dataset(save_dir=save_dir, without_time=True)
+
+    X_train = np.load(os.path.join(PATH.ecg_path, "without_time", "train", "X.npy"))
+    y_train = np.load(os.path.join(PATH.ecg_path, "without_time", "train", "y.npy"))
 
     print("X_train.shape = ", X_train.shape, " \t y_train.shape = ", y_train.shape)
 
